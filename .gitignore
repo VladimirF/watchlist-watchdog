@@ -205,3 +205,13 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Episode Owl data files (user-specific)
+data/shows.json
+data/notifications.txt
+data/config.json
+data/*.bak
+data/*.tmp
+
+# Keep data directory structure
+!data/.gitkeep
