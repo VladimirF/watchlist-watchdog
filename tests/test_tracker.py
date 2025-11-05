@@ -212,8 +212,26 @@ def test_should_include_episode_special():
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     episode = Episode(season=0, number=1, title="Special", airdate=yesterday)
 
-    assert should_include_episode(episode, include_specials=False) is False
-    assert should_include_episode(episode, include_specials=True) is True
+    assert should_include_episode(episode, include_specials="none") is False
+    assert should_include_episode(episode, include_specials="all") is True
+    assert should_include_episode(episode, include_specials="smart") is True  # No type info, includes by default
+
+
+def test_should_include_episode_smart_mode_movie():
+    """Test smart mode includes movies (significant_special)."""
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # Movie/significant special
+    movie = Episode(season=0, number=1, title="Movie", airdate=yesterday, episode_type="significant_special")
+    assert should_include_episode(movie, include_specials="smart") is True
+
+    # OVA/insignificant special
+    ova = Episode(season=0, number=2, title="OVA", airdate=yesterday, episode_type="insignificant_special")
+    assert should_include_episode(ova, include_specials="smart") is False
+
+    # Regular episode
+    regular = Episode(season=1, number=1, title="Regular", airdate=yesterday, episode_type="regular")
+    assert should_include_episode(regular, include_specials="smart") is True
 
 
 def test_filter_aired_episodes():
@@ -228,10 +246,14 @@ def test_filter_aired_episodes():
         Episode(season=0, number=1, title="Special", airdate=yesterday),
     ]
 
-    filtered = filter_aired_episodes(episodes)
-
+    # Test with "none" mode - exclude specials
+    filtered = filter_aired_episodes(episodes, include_specials="none")
     assert len(filtered) == 1
     assert filtered[0].number == 1
+
+    # Test with "all" mode - include everything aired
+    filtered_all = filter_aired_episodes(episodes, include_specials="all")
+    assert len(filtered_all) == 2  # Regular episode + special
 
 
 def test_create_show_dict():

@@ -13,12 +13,14 @@ class Episode(NamedTuple):
         title: Episode title
         airdate: Air date string (YYYY-MM-DD format)
         absolute_number: Absolute episode number (optional)
+        episode_type: Episode type from API (regular, significant_special, etc.)
     """
     season: int | None
     number: int
     title: str
     airdate: str
     absolute_number: int | None = None
+    episode_type: str | None = None
 
 
 class ShowUpdate(NamedTuple):
@@ -48,13 +50,15 @@ def parse_episode_from_api(episode_data: dict) -> Episode:
     title = episode_data.get("name", f"Episode {number}")
     airdate = episode_data.get("airdate", "")
     absolute_number = episode_data.get("number")  # Some shows use absolute numbering
+    episode_type = episode_data.get("type")  # Type: regular, significant_special, etc.
 
     return Episode(
         season=season,
         number=number,
         title=title,
         airdate=airdate,
-        absolute_number=absolute_number
+        absolute_number=absolute_number,
+        episode_type=episode_type
     )
 
 
@@ -128,12 +132,12 @@ def find_new_episodes(
     return new_episodes
 
 
-def should_include_episode(episode: Episode, include_specials: bool = False) -> bool:
+def should_include_episode(episode: Episode, include_specials: str = "smart") -> bool:
     """Determine if an episode should be included in tracking.
 
     Args:
         episode: Episode to check
-        include_specials: Whether to include special episodes (S00Exx)
+        include_specials: How to handle specials - "smart" (movies only), "all", or "none"
 
     Returns:
         True if episode should be tracked
@@ -151,19 +155,31 @@ def should_include_episode(episode: Episode, include_specials: bool = False) -> 
         # Invalid date format, skip
         return False
 
-    # Handle special episodes (season 0)
-    if episode.season == 0 and not include_specials:
-        return False
+    # Handle special episodes (season 0) based on mode
+    if episode.season == 0:
+        if include_specials == "none":
+            return False
+        elif include_specials == "all":
+            return True
+        elif include_specials == "smart":
+            # Smart mode: include only significant specials (movies)
+            # If we have type information, use it
+            if episode.episode_type:
+                return episode.episode_type == "significant_special"
+            else:
+                # Fallback: include all season 0 (API doesn't always have type)
+                # User can change to "none" if they get too many OVAs
+                return True
 
     return True
 
 
-def filter_aired_episodes(episodes: list[Episode], include_specials: bool = False) -> list[Episode]:
+def filter_aired_episodes(episodes: list[Episode], include_specials: str = "smart") -> list[Episode]:
     """Filter episodes to only include those that have aired.
 
     Args:
         episodes: List of all episodes
-        include_specials: Whether to include special episodes
+        include_specials: How to handle specials - "smart" (movies only), "all", or "none"
 
     Returns:
         Filtered list of episodes
