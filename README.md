@@ -161,7 +161,8 @@ Episode Owl can be configured by editing `data/config.json`:
   "desktop_notifications": true,
   "auto_open_timeline": true,
   "notification_sound": false,
-  "archive_watched_after_days": 30
+  "archive_watched_after_days": 30,
+  "include_specials": "smart"
 }
 ```
 
@@ -176,6 +177,7 @@ Episode Owl can be configured by editing `data/config.json`:
 - **auto_open_timeline**: Auto-open timeline file after finding episodes (default: true)
 - **notification_sound**: Play sound with desktop notifications (default: false)
 - **archive_watched_after_days**: Days before archiving old watched episodes (default: 30)
+- **include_specials**: Track special episodes/movies - `"smart"` (movies only), `"all"` (everything), or `"none"` (skip specials) (default: smart)
 
 ## Data Files
 
@@ -265,6 +267,55 @@ Old watched notifications are automatically archived to prevent file bloat:
 - Configure with `"archive_watched_after_days": 30`
 - Unwatched notifications are never archived
 - Runs automatically during `check` command
+
+## Movies and Special Episodes
+
+Episode Owl can track anime movies and special episodes (OVAs, recaps, etc.). TVMaze lists these as "Season 0" episodes.
+
+### Smart Mode (Default - Recommended)
+
+The `"include_specials": "smart"` setting intelligently filters specials:
+
+- **Tracks**: Movies (significant_special type)
+- **Tracks**: Regular episodes
+- **Skips**: OVAs, recaps, and filler specials (insignificant_special type)
+
+This is perfect for anime that transition from TV seasons to movies (like Attack on Titan, Demon Slayer, etc.).
+
+### Configuration Modes
+
+```json
+{
+  "include_specials": "smart"  // Default: Track movies, skip OVAs
+  "include_specials": "all"    // Track everything (movies + OVAs)
+  "include_specials": "none"   // Skip all Season 0 episodes
+}
+```
+
+### Important Notes
+
+**Release Dates**: TVMaze doesn't distinguish between theatrical and streaming release dates. When you get a movie notification:
+- The date shown is usually the theatrical release (Japan)
+- Streaming releases typically come 3-6 months later
+- Check MyAnimeList or AniList for accurate streaming dates
+
+**API Limitations**: If TVMaze doesn't include episode type information, smart mode will include all Season 0 episodes by default. If you get too many OVAs, switch to `"none"` mode.
+
+### Example Workflow
+
+```bash
+# Add an anime show
+python -m episode_owl add
+> Enter show name to search: attack on titan
+
+# When new movie releases
+[Notification] 🦉 1 new episode found!
+Attack on Titan - S00E01 | The Final Season: The Movie
+
+# Check streaming date on MyAnimeList
+# Mark as watched when you actually watch it
+python -m episode_owl mark
+```
 
 ## Automation (Optional)
 

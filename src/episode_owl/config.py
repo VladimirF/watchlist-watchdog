@@ -20,6 +20,7 @@ class Config:
         auto_open_timeline: Automatically open timeline after check
         notification_sound: Play sound with desktop notifications
         archive_watched_after_days: Days before archiving watched notifications
+        include_specials: Track special episodes (movies, OVAs) - "smart", "all", or "none"
     """
     output_path: str = "data/notifications.txt"
     date_format: str = "%Y-%m-%d"
@@ -30,6 +31,7 @@ class Config:
     auto_open_timeline: bool = True
     notification_sound: bool = False
     archive_watched_after_days: int = 30
+    include_specials: str = "smart"
 
 
 def load_config(config_path: Path) -> Config:

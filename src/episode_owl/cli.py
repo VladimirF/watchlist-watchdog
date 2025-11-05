@@ -67,7 +67,7 @@ def add_show_interactive(paths: dict[str, Path], cfg: config.Config) -> None:
 
         # Parse and filter episodes
         episodes = [tracker.parse_episode_from_api(ep) for ep in episodes_data]
-        aired_episodes = tracker.filter_aired_episodes(episodes)
+        aired_episodes = tracker.filter_aired_episodes(episodes, cfg.include_specials)
 
         # Get latest episode for initial state
         latest = tracker.get_latest_episode(aired_episodes)
@@ -178,7 +178,7 @@ def check_updates(paths: dict[str, Path], cfg: config.Config, no_open: bool = Fa
 
                 # Parse and filter episodes
                 episodes = [tracker.parse_episode_from_api(ep) for ep in episodes_data]
-                aired_episodes = tracker.filter_aired_episodes(episodes)
+                aired_episodes = tracker.filter_aired_episodes(episodes, cfg.include_specials)
 
                 # Find new episodes
                 new_episodes = tracker.find_new_episodes(
