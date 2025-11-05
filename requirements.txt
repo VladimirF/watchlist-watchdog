@@ -1,0 +1,4 @@
+requests>=2.31.0,<3.0.0
+rapidfuzz>=3.5.0,<4.0.0
+win10toast-click>=0.1.0;platform_system=="Windows"
+plyer>=2.1.0,<3.0.0
