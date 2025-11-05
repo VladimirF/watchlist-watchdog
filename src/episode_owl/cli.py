@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-from . import api, config, notifications, search, storage, tracker
+from . import api, config, notifications, notifier, search, storage, tracker, utils, watched
 
 
 def print_header():
@@ -141,12 +141,13 @@ def remove_show_interactive(paths: dict[str, Path]) -> None:
         print(f"\nStorage error: {e}")
 
 
-def check_updates(paths: dict[str, Path], cfg: config.Config) -> None:
+def check_updates(paths: dict[str, Path], cfg: config.Config, no_open: bool = False) -> None:
     """Check for new episodes for all tracked shows.
 
     Args:
         paths: Dictionary of file paths
         cfg: Configuration object
+        no_open: If True, don't auto-open timeline (overrides config)
     """
     try:
         shows = storage.load_shows(paths["shows"])
@@ -228,6 +229,34 @@ def check_updates(paths: dict[str, Path], cfg: config.Config) -> None:
         if errors:
             print(f"\nWarning: {len(errors)} show(s) had errors during check")
 
+        # Phase 2 features: desktop notifications and auto-open
+        if all_updates:
+            # Send desktop notification
+            if cfg.desktop_notifications:
+                try:
+                    notifier.send_desktop_notification(
+                        all_updates,
+                        paths["notifications"],
+                        cfg.notification_sound
+                    )
+                except Exception as e:
+                    # Don't crash if notification fails
+                    print(f"Note: Desktop notification failed: {e}")
+
+            # Auto-open timeline file
+            if utils.should_auto_open(cfg.auto_open_timeline, no_open):
+                utils.open_timeline_file(paths["notifications"])
+
+        # Archive old watched notifications
+        try:
+            watched_state = watched.WatchedState(paths["watched"])
+            archived = watched_state.archive_old_watched(cfg.archive_watched_after_days)
+            if archived > 0:
+                print(f"\nArchived {archived} old watched notification(s)")
+        except Exception as e:
+            # Don't crash if archiving fails
+            print(f"Note: Could not archive old notifications: {e}")
+
     except storage.StorageError as e:
         print(f"\nStorage error: {e}")
 
@@ -255,12 +284,13 @@ def list_shows(paths: dict[str, Path]) -> None:
         print(f"\nStorage error: {e}")
 
 
-def view_timeline(paths: dict[str, Path], limit: int = 20) -> None:
+def view_timeline(paths: dict[str, Path], limit: int = 20, show_all: bool = False) -> None:
     """View recent notifications from timeline.
 
     Args:
         paths: Dictionary of file paths
         limit: Maximum number of entries to display
+        show_all: If True, show all notifications; if False, show only unwatched
     """
     try:
         lines = storage.load_notifications(paths["notifications"], limit=limit)
@@ -270,10 +300,88 @@ def view_timeline(paths: dict[str, Path], limit: int = 20) -> None:
             print("Check for updates to start tracking episodes.")
             return
 
-        print(f"\nRecent Episodes (showing {len(lines)}):\n")
+        # Filter by watched status if needed
+        if not show_all:
+            watched_state = watched.WatchedState(paths["watched"])
+            lines = watched.filter_unwatched_notifications(lines, watched_state)
+
+            if not lines:
+                print("No unwatched notifications.")
+                print("Use --all flag to show all notifications.")
+                return
+
+        status = "All" if show_all else "Unwatched"
+        print(f"\n{status} Episodes (showing {len(lines)}):\n")
 
         for line in lines:
             print(notifications.format_timeline_entry(line))
+
+    except storage.StorageError as e:
+        print(f"\nStorage error: {e}")
+
+
+def mark_watched_interactive(paths: dict[str, Path]) -> None:
+    """Interactive interface to mark notifications as watched.
+
+    Args:
+        paths: Dictionary of file paths
+    """
+    try:
+        # Load unwatched notifications
+        all_lines = storage.load_notifications(paths["notifications"])
+
+        if not all_lines:
+            print("No notifications yet.")
+            print("Check for updates to start tracking episodes.")
+            return
+
+        watched_state = watched.WatchedState(paths["watched"])
+        unwatched_lines = watched.filter_unwatched_notifications(all_lines, watched_state)
+
+        if not unwatched_lines:
+            print("No unwatched notifications.")
+            return
+
+        # Display unwatched notifications
+        print(f"\nUnwatched notifications:\n")
+        for i, line in enumerate(unwatched_lines, 1):
+            print(f"[{i}] {line}")
+
+        # Get user input
+        print("\nMark as watched (comma-separated, 'all', or 'none'): ", end="")
+        user_input = input().strip()
+
+        if not user_input or user_input.lower() == "none":
+            print("Cancelled.")
+            return
+
+        # Parse indices
+        try:
+            indices = watched.parse_notification_indices(user_input, len(unwatched_lines))
+
+            if not indices:
+                print("No notifications marked.")
+                return
+
+            # Create notification keys from selected lines
+            keys_to_mark = []
+            for idx in indices:
+                line = unwatched_lines[idx]
+                try:
+                    key = watched.NotificationKey.from_notification_line(line)
+                    keys_to_mark.append(key)
+                except ValueError:
+                    print(f"Warning: Could not parse line {idx + 1}")
+
+            # Mark as watched
+            if keys_to_mark:
+                count = watched_state.mark_watched(keys_to_mark)
+                print(f"\nMarked {len(keys_to_mark)} notification(s) as watched.")
+            else:
+                print("No valid notifications to mark.")
+
+        except ValueError as e:
+            print(f"\nError: {e}")
 
     except storage.StorageError as e:
         print(f"\nStorage error: {e}")
@@ -293,10 +401,11 @@ def interactive_menu(paths: dict[str, Path], cfg: config.Config) -> None:
         print("3. Check for updates")
         print("4. List tracked shows")
         print("5. View timeline")
-        print("6. Exit")
+        print("6. Mark as watched")
+        print("7. Exit")
         print()
 
-        choice = input("Choose an option (1-6): ").strip()
+        choice = input("Choose an option (1-7): ").strip()
 
         if choice == '1':
             add_show_interactive(paths, cfg)
@@ -309,10 +418,12 @@ def interactive_menu(paths: dict[str, Path], cfg: config.Config) -> None:
         elif choice == '5':
             view_timeline(paths)
         elif choice == '6':
+            mark_watched_interactive(paths)
+        elif choice == '7':
             print("\nGoodbye!")
             break
         else:
-            print("\nInvalid option. Please choose 1-6.")
+            print("\nInvalid option. Please choose 1-7.")
 
         input("\nPress Enter to continue...")
 
@@ -338,18 +449,31 @@ def main():
             remove_show_interactive(paths)
 
         elif command == "check":
-            check_updates(paths, cfg)
+            # Check for --no-open flag
+            no_open = "--no-open" in sys.argv
+            check_updates(paths, cfg, no_open=no_open)
 
         elif command == "list":
             list_shows(paths)
 
         elif command == "timeline":
-            limit = int(sys.argv[2]) if len(sys.argv) > 2 else 20
-            view_timeline(paths, limit)
+            # Parse flags and arguments
+            show_all = "--all" in sys.argv
+            # Get limit (number) if provided
+            limit = 20
+            for arg in sys.argv[2:]:
+                if arg.isdigit():
+                    limit = int(arg)
+                    break
+
+            view_timeline(paths, limit, show_all=show_all)
+
+        elif command == "mark":
+            mark_watched_interactive(paths)
 
         else:
             print(f"Unknown command: {command}")
-            print("Available commands: add, remove, check, list, timeline")
+            print("Available commands: add, remove, check [--no-open], list, timeline [--all], mark")
             sys.exit(1)
     else:
         # Run interactive menu

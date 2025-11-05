@@ -16,12 +16,20 @@ class Config:
         max_notifications: Maximum number of notifications to keep
         api_timeout: Timeout for API requests in seconds
         retry_attempts: Number of retry attempts for failed requests
+        desktop_notifications: Enable Windows toast notifications
+        auto_open_timeline: Automatically open timeline after check
+        notification_sound: Play sound with desktop notifications
+        archive_watched_after_days: Days before archiving watched notifications
     """
     output_path: str = "data/notifications.txt"
     date_format: str = "%Y-%m-%d"
     max_notifications: int = 100
     api_timeout: int = 10
     retry_attempts: int = 1
+    desktop_notifications: bool = True
+    auto_open_timeline: bool = True
+    notification_sound: bool = False
+    archive_watched_after_days: int = 30
 
 
 def load_config(config_path: Path) -> Config:
@@ -39,7 +47,12 @@ def load_config(config_path: Path) -> Config:
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        return Config(**data)
+
+        # Filter to only known Config fields for backward compatibility
+        config_fields = {f.name for f in Config.__dataclass_fields__.values()}
+        filtered_data = {k: v for k, v in data.items() if k in config_fields}
+
+        return Config(**filtered_data)
     except (json.JSONDecodeError, TypeError) as e:
         # If config is malformed, return defaults
         print(f"Warning: Could not parse config file: {e}")
@@ -63,12 +76,13 @@ def get_default_paths() -> dict[str, Path]:
     """Get default paths for application data.
 
     Returns:
-        Dictionary with paths for shows, notifications, and config files
+        Dictionary with paths for shows, notifications, watched, and config files
     """
     base_dir = Path(__file__).parent.parent.parent / "data"
 
     return {
         "shows": base_dir / "shows.json",
         "notifications": base_dir / "notifications.txt",
+        "watched": base_dir / "watched.json",
         "config": base_dir / "config.json",
     }

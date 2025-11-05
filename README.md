@@ -7,6 +7,9 @@ A simple, lightweight command-line tool to track TV shows and anime episodes. Ge
 - **Track Multiple Shows**: Monitor as many TV shows and anime as you want
 - **Fuzzy Search**: Find shows easily with partial names (e.g., "sunny" finds "It's Always Sunny in Philadelphia")
 - **Timeline Format**: View all new episodes in a clean, chronological timeline
+- **Desktop Notifications**: Get Windows toast notifications when new episodes are found (NEW!)
+- **Mark as Watched**: Track which episodes you've seen, filter timeline to show only unwatched (NEW!)
+- **Auto-Open Timeline**: Automatically opens timeline file after finding new episodes (NEW!)
 - **Offline Storage**: All data stored locally in simple JSON/text files
 - **Manual Execution**: Run when you want updates - no background processes or daemons
 - **Windows Compatible**: Works seamlessly on Windows (and Linux/macOS)
@@ -83,14 +86,23 @@ python -m episode_owl add
 # Check for new episodes
 python -m episode_owl check
 
+# Check without auto-opening timeline
+python -m episode_owl check --no-open
+
 # List tracked shows
 python -m episode_owl list
 
-# View recent episodes
+# View recent unwatched episodes (default)
 python -m episode_owl timeline
+
+# View ALL episodes (including watched)
+python -m episode_owl timeline --all
 
 # View more timeline entries
 python -m episode_owl timeline 50
+
+# Mark episodes as watched
+python -m episode_owl mark
 ```
 
 ### Example Workflow
@@ -145,7 +157,11 @@ Episode Owl can be configured by editing `data/config.json`:
   "date_format": "%Y-%m-%d",
   "max_notifications": 100,
   "api_timeout": 10,
-  "retry_attempts": 1
+  "retry_attempts": 1,
+  "desktop_notifications": true,
+  "auto_open_timeline": true,
+  "notification_sound": false,
+  "archive_watched_after_days": 30
 }
 ```
 
@@ -156,6 +172,10 @@ Episode Owl can be configured by editing `data/config.json`:
 - **max_notifications**: Maximum notifications to keep (default: 100)
 - **api_timeout**: API request timeout in seconds (default: 10)
 - **retry_attempts**: Number of retries for failed requests (default: 1)
+- **desktop_notifications**: Enable Windows toast notifications (default: true)
+- **auto_open_timeline**: Auto-open timeline file after finding episodes (default: true)
+- **notification_sound**: Play sound with desktop notifications (default: false)
+- **archive_watched_after_days**: Days before archiving old watched episodes (default: 30)
 
 ## Data Files
 
@@ -163,6 +183,7 @@ All data is stored in the `data/` directory:
 
 - **shows.json**: List of tracked shows and their last seen episodes
 - **notifications.txt**: Timeline of new episodes (newest first)
+- **watched.json**: Tracks which notifications have been marked as watched (NEW!)
 - **config.json**: User configuration (created on first run)
 
 ### Example shows.json
@@ -188,6 +209,62 @@ All data is stored in the `data/` directory:
 2025-11-05 | It's Always Sunny in Philadelphia | S16E03 | The Gang Gets Analyzed
 2025-11-04 | The Office | S09E23 | Finale
 ```
+
+## Phase 2 Features
+
+### Desktop Notifications
+
+When new episodes are found, Episode Owl sends a Windows toast notification:
+- Shows count of new episodes
+- Lists top 3 show names
+- Click notification to open timeline file (Windows only)
+- Can be disabled in config: `"desktop_notifications": false`
+
+### Mark as Watched
+
+Track which episodes you've seen to keep your timeline clean:
+
+```bash
+python -m episode_owl mark
+```
+
+Interactive interface shows unwatched episodes:
+```
+Unwatched notifications:
+
+[1] 2025-11-05 | Breaking Bad | S05E16 | Felina
+[2] 2025-11-04 | The Wire | S05E10 | -30-
+
+Mark as watched (comma-separated, 'all', or 'none'): 1,2
+```
+
+Supports various input formats:
+- Single: `1`
+- Multiple: `1,3,5`
+- Range: `2-5`
+- All: `all`
+- None: `none`
+
+By default, `timeline` command shows only unwatched episodes. Use `--all` flag to see everything.
+
+### Auto-Open Timeline
+
+After finding new episodes, the timeline file automatically opens in your default text editor:
+- Windows: Notepad
+- macOS: Default text editor
+- Linux: xdg-open
+
+Disable in config: `"auto_open_timeline": false`
+
+Or use command-line flag: `python -m episode_owl check --no-open`
+
+### Automatic Archiving
+
+Old watched notifications are automatically archived to prevent file bloat:
+- Default: 30 days
+- Configure with `"archive_watched_after_days": 30`
+- Unwatched notifications are never archived
+- Runs automatically during `check` command
 
 ## Automation (Optional)
 
